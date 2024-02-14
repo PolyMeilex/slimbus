@@ -1,0 +1,9 @@
+[workspace]
+members = ["slimbus"]
+
+[package]
+name = "examples"
+edition = "2021"
+
+[dependencies]
+slimbus = { path = "./slimbus" }
