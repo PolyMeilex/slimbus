@@ -117,7 +117,10 @@ name = "examples"
 version = "0.0.0"
 dependencies = [
  "calloop",
+ "rand",
+ "serde",
  "slimbus",
+ "zvariant",
 ]
 
 [[package]]
