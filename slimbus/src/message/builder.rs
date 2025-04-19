@@ -213,7 +213,7 @@ impl<'a> Builder<'a> {
         // to efficient handling of ones that are complex to serialize.
         let body_size = zvariant::serialized_size(ctxt, body)?;
 
-        let signature = body.dynamic_signature();
+        let signature = body.signature();
 
         self.build_generic(signature, body_size, move |cursor| {
             // SAFETY: build_generic puts FDs and the body in the same Message.
@@ -236,10 +236,10 @@ impl<'a> Builder<'a> {
         fds: Vec<OwnedFd>,
     ) -> Result<Message>
     where
-        S: TryInto<Signature<'b>>,
+        S: TryInto<Signature>,
         S::Error: Into<Error>,
     {
-        let signature: Signature<'b> = signature.try_into().map_err(Into::into)?;
+        let signature: Signature = signature.try_into().map_err(Into::into)?;
         let body_size = serialized::Size::new(body_bytes.len(), dbus_context!(self, 0));
         let body_size = {
             let num_fds = fds.len().try_into().map_err(|_| Error::ExcessData)?;
@@ -258,7 +258,7 @@ impl<'a> Builder<'a> {
 
     fn build_generic<WriteFunc>(
         self,
-        mut signature: Signature<'_>,
+        signature: Signature,
         body_size: serialized::Size,
         write_body: WriteFunc,
     ) -> Result<Message>
@@ -268,13 +268,7 @@ impl<'a> Builder<'a> {
         let ctxt = dbus_context!(self, 0);
         let mut header = self.header;
 
-        if !signature.is_empty() {
-            if signature.starts_with(zvariant::STRUCT_SIG_START_STR) {
-                // Remove leading and trailing STRUCT delimiters
-                signature = signature.slice(1..signature.len() - 1);
-            }
-            header.fields_mut().add(Field::Signature(signature));
-        }
+        header.fields_mut().add(Field::Signature(signature));
 
         let body_len_u32 = body_size.size().try_into().map_err(|_| Error::ExcessData)?;
         header.primary_mut().set_body_len(body_len_u32);

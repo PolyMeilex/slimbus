@@ -86,15 +86,14 @@ pub(super) enum Field<'f> {
     /// Unique name of the sending connection.
     Sender(UniqueName<'f>),
     /// The signature of the message body.
-    Signature(Signature<'f>),
+    Signature(Signature),
     /// The number of Unix file descriptors that accompany the message.
     UnixFDs(u32),
 }
 
 impl<'f> Type for Field<'f> {
-    fn signature() -> Signature<'static> {
-        Signature::from_static_str_unchecked("(yv)")
-    }
+    const SIGNATURE: &'static Signature =
+        &Signature::static_structure(&[&Signature::U8, &Signature::Variant]);
 }
 
 impl<'f> Serialize for Field<'f> {
@@ -110,7 +109,7 @@ impl<'f> Serialize for Field<'f> {
             Field::ReplySerial(value) => (FieldCode::ReplySerial, value.get().into()),
             Field::Destination(value) => (FieldCode::Destination, value.as_str().into()),
             Field::Sender(value) => (FieldCode::Sender, value.as_str().into()),
-            Field::Signature(value) => (FieldCode::Signature, value.as_ref().into()),
+            Field::Signature(value) => (FieldCode::Signature, Value::Signature(value.clone())),
             Field::UnixFDs(value) => (FieldCode::UnixFDs, (*value).into()),
         };
 

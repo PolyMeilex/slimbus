@@ -24,9 +24,7 @@ impl Body {
     where
         B: zvariant::DynamicDeserialize<'s>,
     {
-        let body_sig = self
-            .signature()
-            .unwrap_or_else(|| Signature::from_static_str_unchecked(""));
+        let body_sig = self.signature().unwrap_or_else(|| Signature::Unit);
 
         self.data
             .deserialize_for_dynamic_signature(body_sig)
@@ -48,8 +46,8 @@ impl Body {
     /// syntax), D-Bus does not. Since this method gives you the signature expected on the wire by
     /// D-Bus, the trailing and leading STRUCT signature parenthesis will not be present in case of
     /// multiple arguments.
-    pub fn signature(&self) -> Option<Signature<'_>> {
-        self.msg.inner.quick_fields.signature(&self.msg)
+    pub fn signature(&self) -> Option<Signature> {
+        self.msg.inner.quick_fields.signature()
     }
 
     /// The length of the body in bytes.

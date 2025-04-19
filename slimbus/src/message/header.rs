@@ -332,7 +332,7 @@ impl<'m> Header<'m> {
     }
 
     /// The signature of the message body.
-    pub fn signature(&self) -> Option<&Signature<'m>> {
+    pub fn signature(&self) -> Option<&Signature> {
         get_field!(self, Signature)
     }
 

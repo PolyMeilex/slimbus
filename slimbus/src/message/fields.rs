@@ -138,7 +138,7 @@ impl FieldPos {
 }
 
 /// A cache of the Message header fields.
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct QuickFields {
     path: FieldPos,
     interface: FieldPos,
@@ -147,7 +147,7 @@ pub(crate) struct QuickFields {
     reply_serial: Option<NonZeroU32>,
     destination: FieldPos,
     sender: FieldPos,
-    signature: FieldPos,
+    signature: Option<Signature>,
     unix_fds: Option<u32>,
 }
 
@@ -161,7 +161,7 @@ impl QuickFields {
             reply_serial: header.reply_serial(),
             destination: FieldPos::new(buf, header.destination()),
             sender: FieldPos::new(buf, header.sender()),
-            signature: FieldPos::new(buf, header.signature()),
+            signature: header.signature().cloned(),
             unix_fds: header.unix_fds(),
         })
     }
@@ -194,8 +194,8 @@ impl QuickFields {
         self.sender.read(msg.data())
     }
 
-    pub fn signature<'m>(&self, msg: &'m Message) -> Option<Signature<'m>> {
-        self.signature.read(msg.data())
+    pub fn signature(&self) -> Option<Signature> {
+        self.signature.clone()
     }
 
     pub fn unix_fds(&self) -> Option<u32> {

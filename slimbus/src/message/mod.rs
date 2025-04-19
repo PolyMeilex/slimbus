@@ -181,7 +181,7 @@ impl Message {
         if let Some(s) = quick_fields.sender(self) {
             fields.add(Field::Sender(s));
         }
-        if let Some(s) = quick_fields.signature(self) {
+        if let Some(s) = quick_fields.signature() {
             fields.add(Field::Signature(s));
         }
         if let Some(u) = quick_fields.unix_fds() {
