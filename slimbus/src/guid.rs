@@ -1,7 +1,6 @@
 use std::{
     borrow::{Borrow, Cow},
     fmt::{self, Debug, Display, Formatter},
-    iter::repeat_with,
     ops::Deref,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
@@ -24,11 +23,11 @@ pub struct Guid<'g>(Str<'g>);
 impl Guid<'_> {
     /// Generate a D-Bus GUID that can be used with e.g.
     /// [`connection::Builder::server`](crate::connection::Builder::server).
-    pub fn generate() -> Guid<'static> {
-        let r: Vec<u32> = repeat_with(rand::random::<u32>).take(3).collect();
+    pub fn generate(random_ints: [u32; 4]) -> Guid<'static> {
+        let r = random_ints;
         let r3 = match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(n) => n.as_secs() as u32,
-            Err(_) => rand::random::<u32>(),
+            Err(_) => random_ints[3],
         };
 
         let s = format!("{:08x}{:08x}{:08x}{:08x}", r[0], r[1], r[2], r3);
@@ -128,7 +127,7 @@ impl<'de> Deserialize<'de> for Guid<'de> {
 }
 
 fn validate_guid(value: &str) -> crate::Result<()> {
-    if value.as_bytes().len() != 32 || value.chars().any(|c| !char::is_ascii_hexdigit(&c)) {
+    if value.len() != 32 || value.chars().any(|c| !char::is_ascii_hexdigit(&c)) {
         return Err(crate::Error::InvalidGUID);
     }
 

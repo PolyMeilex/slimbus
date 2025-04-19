@@ -552,7 +552,6 @@ dependencies = [
  "enumflags2",
  "log",
  "nix",
- "rand",
  "serde",
  "serde_repr",
  "zbus_names",
