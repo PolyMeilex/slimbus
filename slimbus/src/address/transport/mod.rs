@@ -20,41 +20,37 @@ use std::os::linux::net::SocketAddrExt;
 /// The transport properties of a D-Bus address.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum Transport {
-    /// A Unix Domain Socket address.
-    Unix(Unix),
-}
+pub struct Transport(
+    // A Unix Domain Socket address.
+    Unix,
+);
 
 impl Transport {
     pub(super) fn connect(self) -> Result<Stream> {
-        match self {
-            Transport::Unix(unix) => {
-                let addr = match unix.take_path() {
-                    UnixSocket::File(path) => SocketAddr::from_pathname(path)?,
-                    #[cfg(target_os = "linux")]
-                    UnixSocket::Abstract(name) => {
-                        SocketAddr::from_abstract_name(name.as_encoded_bytes())?
-                    }
-                    UnixSocket::Dir(_) | UnixSocket::TmpDir(_) => {
-                        // you can't connect to a unix:dir
-                        return Err(Error::Unsupported);
-                    }
-                };
-                let stream = {
-                    let stream = UnixStream::connect_addr(&addr)?;
-                    stream.set_nonblocking(false)?;
-                    stream
-                };
+        let unix = self.0;
 
-                Ok(Stream::Unix(stream))
+        let addr = match unix.take_path() {
+            UnixSocket::File(path) => SocketAddr::from_pathname(path)?,
+            #[cfg(target_os = "linux")]
+            UnixSocket::Abstract(name) => SocketAddr::from_abstract_name(name.as_encoded_bytes())?,
+            UnixSocket::Dir(_) | UnixSocket::TmpDir(_) => {
+                // you can't connect to a unix:dir
+                return Err(Error::Unsupported);
             }
-        }
+        };
+        let stream = {
+            let stream = UnixStream::connect_addr(&addr)?;
+            stream.set_nonblocking(false)?;
+            stream
+        };
+
+        Ok(Stream(stream))
     }
 
     // Helper for `FromStr` impl of `Address`.
     pub(super) fn from_options(transport: &str, options: HashMap<&str, &str>) -> Result<Self> {
         match transport {
-            "unix" => Unix::from_options(options).map(Self::Unix),
+            "unix" => Unix::from_options(options).map(Self),
             _ => Err(Error::Address(format!(
                 "unsupported transport '{transport}'"
             ))),
@@ -63,9 +59,7 @@ impl Transport {
 }
 
 #[derive(Debug)]
-pub(crate) enum Stream {
-    Unix(UnixStream),
-}
+pub(crate) struct Stream(pub UnixStream);
 
 pub(super) fn encode_percents(f: &mut Formatter<'_>, mut value: &[u8]) -> std::fmt::Result {
     const LOOKUP: &str = "\
@@ -112,10 +106,6 @@ pub(super) fn encode_percents(f: &mut Formatter<'_>, mut value: &[u8]) -> std::f
 
 impl Display for Transport {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unix(unix) => write!(f, "{}", unix)?,
-        }
-
-        Ok(())
+        write!(f, "{}", self.0)
     }
 }

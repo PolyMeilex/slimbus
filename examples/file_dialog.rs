@@ -11,7 +11,7 @@ pub struct HandleToken(String);
 
 impl Default for HandleToken {
     fn default() -> Self {
-        use rand::{distributions::Alphanumeric, thread_rng, Rng};
+        use rand::{distr::Alphanumeric, thread_rng, Rng};
 
         let token: String = thread_rng()
             .sample_iter(Alphanumeric)

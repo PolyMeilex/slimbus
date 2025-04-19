@@ -97,7 +97,7 @@ impl AsRawFd for Connection {
 pub fn build(address: Address) -> Result<(Connection, SocketReader)> {
     let server_guid = address.guid().map(|g| g.to_owned().into());
     let (raw_fd, stream) = match address.connect()? {
-        address::transport::Stream::Unix(stream) => (stream.as_raw_fd(), stream.into()),
+        address::transport::Stream(stream) => (stream.as_raw_fd(), stream.into()),
     };
 
     let mut auth = Authenticated::client(stream, server_guid)?;
