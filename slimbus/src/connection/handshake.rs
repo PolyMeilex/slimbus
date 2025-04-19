@@ -207,11 +207,9 @@ impl ClientHandshake {
 
         self.wait_for_ok()?;
 
-        if self.common.socket.read_mut().can_pass_unix_fd() {
-            self.common.write_command(Command::NegotiateUnixFD)?;
+        self.common.write_command(Command::NegotiateUnixFD)?;
 
-            self.wait_for_agree_unix_fd()?;
-        }
+        self.wait_for_agree_unix_fd()?;
 
         self.common.write_command(Command::Begin)?;
 

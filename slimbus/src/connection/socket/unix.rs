@@ -23,11 +23,6 @@ impl super::ReadHalf for Arc<UnixStream> {
         }
     }
 
-    /// Supports passing file descriptors.
-    fn can_pass_unix_fd(&self) -> bool {
-        true
-    }
-
     fn peer_credentials(&mut self) -> io::Result<crate::fdo::ConnectionCredentials> {
         get_unix_peer_creds(self)
     }

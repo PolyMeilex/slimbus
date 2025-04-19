@@ -44,13 +44,6 @@ pub trait ReadHalf: std::fmt::Debug + Send + Sync + 'static {
     /// any associated file descriptors.
     fn recvmsg(&mut self, buf: &mut [u8]) -> RecvmsgResult;
 
-    /// Supports passing file descriptors.
-    ///
-    /// Default implementation returns `false`.
-    fn can_pass_unix_fd(&self) -> bool {
-        false
-    }
-
     /// Return the peer credentials.
     fn peer_credentials(&mut self) -> io::Result<ConnectionCredentials> {
         Ok(ConnectionCredentials::default())
@@ -102,10 +95,6 @@ pub trait WriteHalf: std::fmt::Debug + Send + Sync + 'static {
 }
 
 impl ReadHalf for Box<dyn ReadHalf> {
-    fn can_pass_unix_fd(&self) -> bool {
-        (**self).can_pass_unix_fd()
-    }
-
     fn recvmsg(&mut self, buf: &mut [u8]) -> RecvmsgResult {
         (**self).recvmsg(buf)
     }
