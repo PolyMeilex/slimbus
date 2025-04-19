@@ -14,8 +14,6 @@ pub mod transport;
 use crate::{Error, Guid, OwnedGuid, Result};
 use std::{collections::HashMap, env, str::FromStr};
 
-use std::fmt::{Display, Formatter};
-
 use self::transport::Stream;
 pub use self::transport::Transport;
 
@@ -86,18 +84,6 @@ impl Address {
     /// The GUID for this address, if known.
     pub fn guid(&self) -> Option<&Guid<'_>> {
         self.guid.as_ref().map(|guid| guid.inner())
-    }
-}
-
-impl Display for Address {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.transport.fmt(f)?;
-
-        if let Some(guid) = &self.guid {
-            write!(f, ",guid={}", guid)?;
-        }
-
-        Ok(())
     }
 }
 

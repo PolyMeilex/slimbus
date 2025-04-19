@@ -1,12 +1,6 @@
 #[cfg(target_os = "linux")]
 use std::ffi::OsString;
-use std::{
-    ffi::OsStr,
-    fmt::{Display, Formatter},
-    path::PathBuf,
-};
-
-use super::encode_percents;
+use std::path::PathBuf;
 
 /// A Unix domain socket transport in a D-Bus address.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,12 +50,6 @@ impl Unix {
     }
 }
 
-impl Display for Unix {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "unix:{}", self.path)
-    }
-}
-
 /// A Unix domain socket path in a D-Bus address.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -85,38 +73,4 @@ pub enum UnixSocket {
     ///
     /// This address is mostly relevant to server (typically bus broker) implementations.
     TmpDir(PathBuf),
-}
-
-impl Display for UnixSocket {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn fmt_unix_path(f: &mut Formatter<'_>, path: &OsStr) -> std::fmt::Result {
-            use std::os::unix::ffi::OsStrExt;
-
-            encode_percents(f, path.as_bytes())?;
-
-            Ok(())
-        }
-
-        match self {
-            UnixSocket::File(path) => {
-                f.write_str("path=")?;
-                fmt_unix_path(f, path.as_os_str())?;
-            }
-            #[cfg(target_os = "linux")]
-            UnixSocket::Abstract(name) => {
-                f.write_str("abstract=")?;
-                fmt_unix_path(f, name)?;
-            }
-            UnixSocket::Dir(path) => {
-                f.write_str("dir=")?;
-                fmt_unix_path(f, path.as_os_str())?;
-            }
-            UnixSocket::TmpDir(path) => {
-                f.write_str("tmpdir=")?;
-                fmt_unix_path(f, path.as_os_str())?;
-            }
-        }
-
-        Ok(())
-    }
 }
