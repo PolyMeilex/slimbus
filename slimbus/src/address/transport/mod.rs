@@ -1,10 +1,9 @@
 //! D-Bus transport Information module.
 //!
-//! This module provides the trasport information for D-Bus addresses.
+//! This module provides the transport information for D-Bus addresses.
 
 use crate::{Error, Result};
 use std::collections::HashMap;
-use std::net::TcpStream;
 use std::os::unix::net::{SocketAddr, UnixStream};
 
 use std::{
@@ -14,10 +13,9 @@ use std::{
 
 mod unix;
 pub use unix::{Unix, UnixSocket};
-mod tcp;
+
 #[cfg(target_os = "linux")]
 use std::os::linux::net::SocketAddrExt;
-pub use tcp::{Tcp, TcpTransportFamily};
 
 /// The transport properties of a D-Bus address.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,8 +23,6 @@ pub use tcp::{Tcp, TcpTransportFamily};
 pub enum Transport {
     /// A Unix Domain Socket address.
     Unix(Unix),
-    /// TCP address details
-    Tcp(Tcp),
 }
 
 impl Transport {
@@ -52,23 +48,6 @@ impl Transport {
 
                 Ok(Stream::Unix(stream))
             }
-
-            Transport::Tcp(mut addr) => match addr.take_nonce_file() {
-                Some(nonce_file) => {
-                    let mut stream = addr.connect()?;
-
-                    let nonce_file = {
-                        use std::os::unix::ffi::OsStrExt;
-                        std::ffi::OsStr::from_bytes(&nonce_file)
-                    };
-
-                    let nonce = std::fs::read(nonce_file)?;
-                    std::io::Write::write_all(&mut stream, &nonce)?;
-
-                    Ok(Stream::Tcp(stream))
-                }
-                None => addr.connect().map(Stream::Tcp),
-            },
         }
     }
 
@@ -76,8 +55,6 @@ impl Transport {
     pub(super) fn from_options(transport: &str, options: HashMap<&str, &str>) -> Result<Self> {
         match transport {
             "unix" => Unix::from_options(options).map(Self::Unix),
-            "tcp" => Tcp::from_options(options, false).map(Self::Tcp),
-            "nonce-tcp" => Tcp::from_options(options, true).map(Self::Tcp),
             _ => Err(Error::Address(format!(
                 "unsupported transport '{transport}'"
             ))),
@@ -88,44 +65,6 @@ impl Transport {
 #[derive(Debug)]
 pub(crate) enum Stream {
     Unix(UnixStream),
-    Tcp(TcpStream),
-}
-
-fn decode_hex(c: char) -> Result<u8> {
-    match c {
-        '0'..='9' => Ok(c as u8 - b'0'),
-        'a'..='f' => Ok(c as u8 - b'a' + 10),
-        'A'..='F' => Ok(c as u8 - b'A' + 10),
-
-        _ => Err(Error::Address(
-            "invalid hexadecimal character in percent-encoded sequence".to_owned(),
-        )),
-    }
-}
-
-pub(crate) fn decode_percents(value: &str) -> Result<Vec<u8>> {
-    let mut iter = value.chars();
-    let mut decoded = Vec::new();
-
-    while let Some(c) = iter.next() {
-        if matches!(c, '-' | '0'..='9' | 'A'..='Z' | 'a'..='z' | '_' | '/' | '.' | '\\' | '*') {
-            decoded.push(c as u8)
-        } else if c == '%' {
-            decoded.push(
-                decode_hex(iter.next().ok_or_else(|| {
-                    Error::Address("incomplete percent-encoded sequence".to_owned())
-                })?)?
-                    << 4
-                    | decode_hex(iter.next().ok_or_else(|| {
-                        Error::Address("incomplete percent-encoded sequence".to_owned())
-                    })?)?,
-            );
-        } else {
-            return Err(Error::Address("Invalid character in address".to_owned()));
-        }
-    }
-
-    Ok(decoded)
 }
 
 pub(super) fn encode_percents(f: &mut Formatter<'_>, mut value: &[u8]) -> std::fmt::Result {
@@ -174,7 +113,6 @@ pub(super) fn encode_percents(f: &mut Formatter<'_>, mut value: &[u8]) -> std::f
 impl Display for Transport {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Tcp(tcp) => write!(f, "{}", tcp)?,
             Self::Unix(unix) => write!(f, "{}", unix)?,
         }
 

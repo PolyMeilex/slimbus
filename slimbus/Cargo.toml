@@ -24,7 +24,6 @@ zbus_names = { version = "3.0" }
 enumflags2 = { version = "0.7.7", features = ["serde"] }
 hex = "0.4.3"
 rand = "0.8.5"
-sha1_smol = { version = "1", features = ["std"] }
 log = "0.4"
 
 [target.'cfg(unix)'.dependencies]

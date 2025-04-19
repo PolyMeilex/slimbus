@@ -98,10 +98,9 @@ pub fn build(address: Address) -> Result<(Connection, SocketReader)> {
     let server_guid = address.guid().map(|g| g.to_owned().into());
     let (raw_fd, stream) = match address.connect()? {
         address::transport::Stream::Unix(stream) => (stream.as_raw_fd(), stream.into()),
-        address::transport::Stream::Tcp(stream) => (stream.as_raw_fd(), stream.into()),
     };
 
-    let mut auth = Authenticated::client(stream, server_guid, None)?;
+    let mut auth = Authenticated::client(stream, server_guid)?;
 
     // SAFETY: `Authenticated` is always built with these fields set to `Some`.
     let socket_read = auth.socket_read.take().unwrap();
