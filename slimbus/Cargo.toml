@@ -22,7 +22,7 @@ zvariant = { version = "4.0.0", default-features = false, features = [
 ] }
 zbus_names = { version = "3.0" }
 enumflags2 = { version = "0.7.7", features = ["serde"] }
-rand = "0.8.5"
+rand = "0.9"
 log = "0.4"
 
 [target.'cfg(unix)'.dependencies]

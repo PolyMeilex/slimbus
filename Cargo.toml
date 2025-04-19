@@ -10,5 +10,5 @@ slimbus = { path = "./slimbus" }
 calloop = "0.12"
 
 serde = { version = "1", features = ["derive"] }
-rand = "0.8.5"
+rand = "0.9"
 zvariant = { version = "4.0.0", default-features = false }
