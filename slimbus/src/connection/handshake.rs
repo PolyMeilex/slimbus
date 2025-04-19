@@ -58,7 +58,6 @@ enum Command {
     Auth(Option<AuthMechanism>, Option<Vec<u8>>),
     Cancel,
     Begin,
-    Data(Option<Vec<u8>>),
     Error(String),
     NegotiateUnixFD,
     Rejected(Vec<AuthMechanism>),
@@ -87,6 +86,17 @@ pub struct ClientHandshake {
 
 fn sasl_auth_id() -> String {
     unsafe { nix::libc::geteuid() }.to_string()
+}
+
+fn bytes_to_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    // Each byte becomes two hex digits.
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        // Write two-character, lowercase hex (e.g. "0f", "a3").
+        write!(&mut s, "{:02x}", b).expect("Writing to String should never fail");
+    }
+    s
 }
 
 impl ClientHandshake {
@@ -253,16 +263,12 @@ impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Command::Auth(mech, resp) => match (mech, resp) {
-                (Some(mech), Some(resp)) => write!(f, "AUTH {mech} {}", hex::encode(resp)),
+                (Some(mech), Some(resp)) => write!(f, "AUTH {mech} {}", bytes_to_hex(resp)),
                 (Some(mech), None) => write!(f, "AUTH {mech}"),
                 _ => write!(f, "AUTH"),
             },
             Command::Cancel => write!(f, "CANCEL"),
             Command::Begin => write!(f, "BEGIN"),
-            Command::Data(data) => match data {
-                None => write!(f, "DATA"),
-                Some(data) => write!(f, "DATA {}", hex::encode(data)),
-            },
             Command::Error(expl) => write!(f, "ERROR {expl}"),
             Command::NegotiateUnixFD => write!(f, "NEGOTIATE_UNIX_FD"),
             Command::Rejected(mechs) => {
@@ -283,40 +289,14 @@ impl fmt::Display for Command {
     }
 }
 
-impl From<hex::FromHexError> for Error {
-    fn from(e: hex::FromHexError) -> Self {
-        Error::Handshake(format!("Invalid hexcode: {e}"))
-    }
-}
-
 impl FromStr for Command {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
         let mut words = s.split_ascii_whitespace();
         let cmd = match words.next() {
-            Some("AUTH") => {
-                let mech = if let Some(m) = words.next() {
-                    Some(m.parse()?)
-                } else {
-                    None
-                };
-                let resp = match words.next() {
-                    Some(resp) => Some(hex::decode(resp)?),
-                    None => None,
-                };
-                Command::Auth(mech, resp)
-            }
             Some("CANCEL") => Command::Cancel,
             Some("BEGIN") => Command::Begin,
-            Some("DATA") => {
-                let data = match words.next() {
-                    Some(data) => Some(hex::decode(data)?),
-                    None => None,
-                };
-
-                Command::Data(data)
-            }
             Some("ERROR") => Command::Error(s.into()),
             Some("NEGOTIATE_UNIX_FD") => Command::NegotiateUnixFD,
             Some("REJECTED") => {
