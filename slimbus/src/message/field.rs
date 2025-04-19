@@ -41,9 +41,9 @@ pub(super) enum FieldCode {
     UnixFDs = 9,
 }
 
-impl<'f> Field<'f> {
+impl Field<'_> {
     /// Get the associated code for this field.
-    pub fn code(&self) -> FieldCode {
+    pub fn _code(&self) -> FieldCode {
         match self {
             Field::Path(_) => FieldCode::Path,
             Field::Interface(_) => FieldCode::Interface,

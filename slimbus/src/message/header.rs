@@ -13,10 +13,7 @@ use zvariant::{
     Endian, ObjectPath, Signature, Type as VariantType,
 };
 
-use crate::{
-    message::{Field, FieldCode, Fields},
-    Error,
-};
+use crate::{message::Fields, Error};
 
 pub(crate) const PRIMARY_HEADER_SIZE: usize = 12;
 pub(crate) const MIN_MESSAGE_SIZE: usize = PRIMARY_HEADER_SIZE + 4;
@@ -234,27 +231,6 @@ pub struct Header<'m> {
     fields: Fields<'m>,
 }
 
-macro_rules! get_field {
-    ($self:ident, $kind:ident) => {
-        get_field!($self, $kind, (|v| v))
-    };
-    ($self:ident, $kind:ident, $closure:tt) => {
-        #[allow(clippy::redundant_closure_call)]
-        match $self.fields().get_field(FieldCode::$kind) {
-            Some(Field::$kind(value)) => Some($closure(value)),
-            // SAFETY: `Deserialize` impl for `Field` ensures that the code and field match.
-            Some(_) => unreachable!("FieldCode and Field mismatch"),
-            None => None,
-        }
-    };
-}
-
-macro_rules! get_field_u32 {
-    ($self:ident, $kind:ident) => {
-        get_field!($self, $kind, (|v: &u32| *v))
-    };
-}
-
 impl<'m> Header<'m> {
     /// Create a new `Header` instance.
     pub(super) fn new(primary: PrimaryHeader, fields: Fields<'m>) -> Self {
@@ -276,69 +252,59 @@ impl<'m> Header<'m> {
         self.primary
     }
 
-    /// Get a reference to the message fields.
-    fn fields(&self) -> &Fields<'m> {
-        &self.fields
-    }
-
     /// Get a mutable reference to the message fields.
     pub(super) fn fields_mut(&mut self) -> &mut Fields<'m> {
         &mut self.fields
     }
 
-    /// The message type
+    /// The message type.
     pub fn message_type(&self) -> Type {
         self.primary().msg_type()
     }
 
     /// The object to send a call to, or the object a signal is emitted from.
     pub fn path(&self) -> Option<&ObjectPath<'m>> {
-        get_field!(self, Path)
+        self.fields.path.as_ref()
     }
 
     /// The interface to invoke a method call on, or that a signal is emitted from.
     pub fn interface(&self) -> Option<&InterfaceName<'m>> {
-        get_field!(self, Interface)
+        self.fields.interface.as_ref()
     }
 
     /// The member, either the method name or signal name.
     pub fn member(&self) -> Option<&MemberName<'m>> {
-        get_field!(self, Member)
+        self.fields.member.as_ref()
     }
 
     /// The name of the error that occurred, for errors.
     pub fn error_name(&self) -> Option<&ErrorName<'m>> {
-        get_field!(self, ErrorName)
+        self.fields.error_name.as_ref()
     }
 
     /// The serial number of the message this message is a reply to.
     pub fn reply_serial(&self) -> Option<NonZeroU32> {
-        match self.fields().get_field(FieldCode::ReplySerial) {
-            Some(Field::ReplySerial(value)) => Some(*value),
-            // SAFETY: `Deserialize` impl for `Field` ensures that the code and field match.
-            Some(_) => unreachable!("FieldCode and Field mismatch"),
-            None => None,
-        }
+        self.fields.reply_serial
     }
 
     /// The name of the connection this message is intended for.
     pub fn destination(&self) -> Option<&BusName<'m>> {
-        get_field!(self, Destination)
+        self.fields.destination.as_ref()
     }
 
     /// Unique name of the sending connection.
     pub fn sender(&self) -> Option<&UniqueName<'m>> {
-        get_field!(self, Sender)
+        self.fields.sender.as_ref()
     }
 
     /// The signature of the message body.
-    pub fn signature(&self) -> Option<&Signature> {
-        get_field!(self, Signature)
+    pub fn signature(&self) -> &Signature {
+        &self.fields.signature
     }
 
     /// The number of Unix file descriptors that accompany the message.
     pub fn unix_fds(&self) -> Option<u32> {
-        get_field_u32!(self, UnixFDs)
+        self.fields.unix_fds
     }
 }
 

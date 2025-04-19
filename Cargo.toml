@@ -7,7 +7,7 @@ edition = "2021"
 
 [dev-dependencies]
 slimbus = { path = "./slimbus" }
-calloop = "0.12"
+calloop = "0.14"
 
 serde = { version = "1", features = ["derive"] }
 rand = "0.9"

@@ -1,5 +1,5 @@
 //! D-Bus Message.
-use std::{fmt, num::NonZeroU32, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 use zbus_names::{ErrorName, InterfaceName, MemberName};
 use zvariant::{serialized, Endian};
@@ -9,8 +9,10 @@ use crate::{utils::padding_for_8_bytes, zvariant::ObjectPath, Error, Result};
 mod builder;
 pub use builder::Builder;
 
+mod field_code;
+pub(crate) use field_code::FieldCode;
+
 mod field;
-use field::{Field, FieldCode};
 
 mod fields;
 use fields::{Fields, QuickFields};
@@ -53,7 +55,7 @@ pub struct Message {
 
 pub(super) struct Inner {
     pub(crate) primary_header: PrimaryHeader,
-    pub(crate) quick_fields: QuickFields,
+    pub(crate) quick_fields: std::sync::OnceLock<QuickFields>,
     pub(crate) bytes: serialized::Data<'static, 'static>,
     pub(crate) body_offset: usize,
     pub(crate) recv_seq: Sequence,
@@ -69,8 +71,9 @@ impl Message {
         P::Error: Into<Error>,
         M::Error: Into<Error>,
     {
-        #[allow(deprecated)]
-        Builder::method_call(path, method_name)
+        Builder::new(Type::MethodCall)
+            .path(path)?
+            .member(method_name)
     }
 
     /// Create a builder for message of type [`Type::Signal`].
@@ -87,14 +90,15 @@ impl Message {
         I::Error: Into<Error>,
         M::Error: Into<Error>,
     {
-        #[allow(deprecated)]
-        Builder::signal(path, iface, signal_name)
+        Builder::new(Type::Signal)
+            .path(path)?
+            .interface(iface)?
+            .member(signal_name)
     }
 
     /// Create a builder for message of type [`Type::MethodReturn`].
     pub fn method_reply(call: &Self) -> Result<Builder<'_>> {
-        #[allow(deprecated)]
-        Builder::method_return(&call.header())
+        Builder::new(Type::MethodReturn).reply_to(&call.header())
     }
 
     /// Create a builder for message of type [`Type::Error`].
@@ -103,8 +107,9 @@ impl Message {
         E: TryInto<ErrorName<'e>>,
         E::Error: Into<Error>,
     {
-        #[allow(deprecated)]
-        Builder::error(&call.header(), name)
+        Builder::new(Type::Error)
+            .error_name(name)?
+            .reply_to(&call.header())
     }
 
     /// Create a message from bytes.
@@ -135,7 +140,7 @@ impl Message {
 
         let header_len = MIN_MESSAGE_SIZE + fields_len as usize;
         let body_offset = header_len + padding_for_8_bytes(header_len);
-        let quick_fields = QuickFields::new(&bytes, &header)?;
+        let quick_fields = QuickFields::new(&bytes, &header).into();
 
         Ok(Self {
             inner: Arc::new(Inner {
@@ -158,35 +163,18 @@ impl Message {
     /// zero-cost. While the allocation is small and will hopefully be removed in the future, it's
     /// best to keep the header around if you need to access it a lot.
     pub fn header(&self) -> Header<'_> {
-        let mut fields = Fields::new();
-        let quick_fields = &self.inner.quick_fields;
-        if let Some(p) = quick_fields.path(self) {
-            fields.add(Field::Path(p));
-        }
-        if let Some(i) = quick_fields.interface(self) {
-            fields.add(Field::Interface(i));
-        }
-        if let Some(m) = quick_fields.member(self) {
-            fields.add(Field::Member(m));
-        }
-        if let Some(e) = quick_fields.error_name(self) {
-            fields.add(Field::ErrorName(e));
-        }
-        if let Some(r) = quick_fields.reply_serial() {
-            fields.add(Field::ReplySerial(r));
-        }
-        if let Some(d) = quick_fields.destination(self) {
-            fields.add(Field::Destination(d));
-        }
-        if let Some(s) = quick_fields.sender(self) {
-            fields.add(Field::Sender(s));
-        }
-        if let Some(s) = quick_fields.signature() {
-            fields.add(Field::Signature(s));
-        }
-        if let Some(u) = quick_fields.unix_fds() {
-            fields.add(Field::UnixFDs(u));
-        }
+        let quick_fields = self.quick_fields();
+        let fields = Fields {
+            path: quick_fields.path(self),
+            interface: quick_fields.interface(self),
+            member: quick_fields.member(self),
+            error_name: quick_fields.error_name(self),
+            reply_serial: quick_fields.reply_serial(),
+            destination: quick_fields.destination(self),
+            sender: quick_fields.sender(self),
+            signature: Cow::Borrowed(quick_fields.signature()),
+            unix_fds: quick_fields.unix_fds(),
+        };
 
         Header::new(self.inner.primary_header.clone(), fields)
     }
@@ -194,42 +182,6 @@ impl Message {
     /// The message type.
     pub fn message_type(&self) -> Type {
         self.inner.primary_header.msg_type()
-    }
-
-    /// The object to send a call to, or the object a signal is emitted from.
-    #[deprecated(
-        since = "4.0.0",
-        note = "Use `Message::header` with `message::Header::path` instead"
-    )]
-    pub fn path(&self) -> Option<ObjectPath<'_>> {
-        self.inner.quick_fields.path(self)
-    }
-
-    /// The interface to invoke a method call on, or that a signal is emitted from.
-    #[deprecated(
-        since = "4.0.0",
-        note = "Use `Message::header` with `message::Header::interface` instead"
-    )]
-    pub fn interface(&self) -> Option<InterfaceName<'_>> {
-        self.inner.quick_fields.interface(self)
-    }
-
-    /// The member, either the method name or signal name.
-    #[deprecated(
-        since = "4.0.0",
-        note = "Use `Message::header` with `message::Header::member` instead"
-    )]
-    pub fn member(&self) -> Option<MemberName<'_>> {
-        self.inner.quick_fields.member(self)
-    }
-
-    /// The serial number of the message this message is a reply to.
-    #[deprecated(
-        since = "4.0.0",
-        note = "Use `Message::header` with `message::Header::reply_serial` instead"
-    )]
-    pub fn reply_serial(&self) -> Option<NonZeroU32> {
-        self.inner.quick_fields.reply_serial()
     }
 
     /// The body that you can deserialize using [`Body::deserialize`].
@@ -280,6 +232,17 @@ impl Message {
     pub fn recv_position(&self) -> Sequence {
         self.inner.recv_seq
     }
+
+    fn quick_fields(&self) -> &QuickFields {
+        self.inner.quick_fields.get_or_init(|| {
+            let bytes = &self.inner.bytes;
+            // SAFETY: We ensure that by the time `quick_fields` is called, the header has already
+            // been checked.
+            let (header, _): (Header<'_>, _) = bytes.deserialize().unwrap();
+
+            QuickFields::new(bytes, &header)
+        })
+    }
 }
 
 impl fmt::Debug for Message {
@@ -302,10 +265,7 @@ impl fmt::Debug for Message {
         if let Some(member) = h.member() {
             msg.field("member", &member);
         }
-        if let Some(s) = self.body().signature() {
-            msg.field("body", &s);
-        }
-
+        msg.field("body", &self.body().signature());
         msg.field("fds", &self.data().fds());
 
         msg.finish()
