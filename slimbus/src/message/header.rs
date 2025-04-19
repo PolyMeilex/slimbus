@@ -5,7 +5,6 @@ use std::{
 
 use enumflags2::{bitflags, BitFlags};
 use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
 use zvariant::{
@@ -21,13 +20,37 @@ pub(crate) const MAX_MESSAGE_SIZE: usize = 128 * 1024 * 1024; // 128 MiB
 
 /// D-Bus code for endianness.
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Deserialize_repr, PartialEq, Eq, Serialize_repr, VariantType)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, VariantType)]
 pub enum EndianSig {
     /// The D-Bus message is in big-endian (network) byte order.
     Big = b'B',
 
     /// The D-Bus message is in little-endian byte order.
     Little = b'l',
+}
+
+impl<'de> serde::Deserialize<'de> for EndianSig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match u8::deserialize(deserializer)? {
+            v if v == Self::Big as u8 => Ok(Self::Big),
+            v if v == Self::Little as u8 => Ok(Self::Little),
+            v => Err(serde::de::Error::custom(
+                format_args!("invalid value: {v}",),
+            )),
+        }
+    }
+}
+
+impl serde::Serialize for EndianSig {
+    fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(&(*self as u8), serializer)
+    }
 }
 
 // Such a shame I've to do this manually
@@ -70,9 +93,7 @@ impl From<EndianSig> for Endian {
 
 /// Message header representing the D-Bus type of the message.
 #[repr(u8)]
-#[derive(
-    Debug, Copy, Clone, Deserialize_repr, PartialEq, Eq, Hash, Serialize_repr, VariantType,
-)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, VariantType)]
 pub enum Type {
     /// Method call. This message type may prompt a reply (and typically does).
     MethodCall = 1,
@@ -82,6 +103,32 @@ pub enum Type {
     Error = 3,
     /// Signal emission.
     Signal = 4,
+}
+
+impl<'de> serde::Deserialize<'de> for Type {
+    fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match u8::deserialize(deserializer)? {
+            v if v == Self::MethodCall as u8 => Ok(Self::MethodCall),
+            v if v == Self::MethodReturn as u8 => Ok(Self::MethodReturn),
+            v if v == Self::Error as u8 => Ok(Self::Error),
+            v if v == Self::Signal as u8 => Ok(Self::Signal),
+            v => Err(serde::de::Error::custom(
+                format_args!("invalid value: {v}",),
+            )),
+        }
+    }
+}
+
+impl serde::Serialize for Type {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(&(*self as u8), serializer)
+    }
 }
 
 /// Pre-defined flags that can be passed in Message header.
