@@ -21,7 +21,7 @@ pub struct Transport(
 );
 
 impl Transport {
-    pub(super) fn connect(self) -> Result<Stream> {
+    pub(super) fn connect(self) -> Result<UnixStream> {
         let unix = self.0;
 
         let addr = match unix.take_path() {
@@ -39,7 +39,7 @@ impl Transport {
             stream
         };
 
-        Ok(Stream(stream))
+        Ok(stream)
     }
 
     // Helper for `FromStr` impl of `Address`.
@@ -52,6 +52,3 @@ impl Transport {
         }
     }
 }
-
-#[derive(Debug)]
-pub(crate) struct Stream(pub UnixStream);

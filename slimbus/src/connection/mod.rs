@@ -3,7 +3,7 @@ use log::trace;
 use std::os::fd::{AsFd, AsRawFd, RawFd};
 use std::sync::OnceLock;
 
-use crate::{address, message::Message, names::OwnedUniqueName, Address, Error, Result};
+use crate::{message::Message, names::OwnedUniqueName, Address, Error, Result};
 
 pub mod socket;
 pub use socket::Socket;
@@ -94,11 +94,10 @@ impl AsRawFd for Connection {
 /// result in [`Error::Unsupported`] error.
 pub fn build(address: Address) -> Result<(Connection, SocketReader)> {
     let server_guid = address.guid().map(|g| g.to_owned().into());
-    let (raw_fd, stream) = match address.connect()? {
-        address::transport::Stream(stream) => (stream.as_raw_fd(), stream.into()),
-    };
+    let stream = address.connect()?;
+    let raw_fd = stream.as_raw_fd();
 
-    let mut auth = Authenticated::client(stream, server_guid)?;
+    let mut auth = Authenticated::client(stream.into(), server_guid)?;
 
     // SAFETY: `Authenticated` is always built with these fields set to `Some`.
     let socket_read = auth.socket_read.take().unwrap();

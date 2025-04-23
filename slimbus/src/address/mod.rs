@@ -12,9 +12,8 @@
 pub mod transport;
 
 use crate::{Error, Guid, OwnedGuid, Result};
-use std::{collections::HashMap, env, str::FromStr};
+use std::{collections::HashMap, env, os::unix::net::UnixStream, str::FromStr};
 
-use self::transport::Stream;
 pub use self::transport::Transport;
 
 /// A bus address
@@ -50,7 +49,7 @@ impl Address {
         &self.transport
     }
 
-    pub(crate) fn connect(self) -> Result<Stream> {
+    pub(crate) fn connect(self) -> Result<UnixStream> {
         self.transport.connect()
     }
 
