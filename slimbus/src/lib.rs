@@ -1,7 +1,4 @@
-mod dbus_error;
 use std::os::fd::RawFd;
-
-pub use dbus_error::*;
 
 mod error;
 pub use error::*;
