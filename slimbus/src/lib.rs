@@ -6,9 +6,6 @@ pub use error::*;
 pub mod address;
 pub use address::Address;
 
-mod guid;
-pub use guid::*;
-
 pub mod message;
 pub use message::Message;
 
@@ -26,6 +23,7 @@ pub use utils::*;
 pub mod fdo;
 
 pub mod names;
+pub use names::*;
 
 pub use zvariant;
 

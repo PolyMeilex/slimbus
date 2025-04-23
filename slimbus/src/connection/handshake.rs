@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{guid::Guid, Error, OwnedGuid, Result};
+use crate::{Error, Guid, OwnedGuid, Result};
 
 use super::socket::{UnixStreamRead, UnixStreamWrite};
 
@@ -306,7 +306,7 @@ impl FromStr for Command {
                 let guid = words
                     .next()
                     .ok_or_else(|| Error::Handshake("Missing OK server GUID!".into()))?;
-                Command::Ok(Guid::from_str(guid)?.into())
+                Command::Ok(Guid::from(guid).to_owned())
             }
             Some("AGREE_UNIX_FD") => Command::AgreeUnixFD,
             _ => return Err(Error::Handshake(format!("Unknown command: {s}"))),

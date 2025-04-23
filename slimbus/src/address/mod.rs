@@ -82,7 +82,7 @@ impl Address {
 
     /// The GUID for this address, if known.
     pub fn guid(&self) -> Option<&Guid<'_>> {
-        self.guid.as_ref().map(|guid| guid.inner())
+        self.guid.as_ref()
     }
 }
 
@@ -116,10 +116,7 @@ impl FromStr for Address {
         }
 
         Ok(Self {
-            guid: options
-                .remove("guid")
-                .map(|s| Guid::from_str(s).map(|guid| OwnedGuid::from(guid).to_owned()))
-                .transpose()?,
+            guid: options.remove("guid").map(|s| Guid::from(s).to_owned()),
             transport: Transport::from_options(transport, options)?,
         })
     }
