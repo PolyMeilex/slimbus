@@ -1,9 +1,13 @@
-use std::os::unix::io::{AsRawFd, BorrowedFd, FromRawFd, RawFd};
-use std::os::unix::net::UnixStream;
-use std::sync::Arc;
 use std::{
     io::{self, IoSlice, IoSliceMut},
-    os::fd::OwnedFd,
+    os::{
+        fd::OwnedFd,
+        unix::{
+            io::{AsRawFd, BorrowedFd, FromRawFd, RawFd},
+            net::UnixStream,
+        },
+    },
+    sync::Arc,
 };
 
 use nix::{
@@ -11,50 +15,66 @@ use nix::{
     sys::socket::{recvmsg, sendmsg, ControlMessage, ControlMessageOwned, MsgFlags, UnixAddr},
 };
 
+type RecvmsgResult = io::Result<(usize, Vec<OwnedFd>)>;
+
 use crate::utils::FDS_MAX;
 
-impl super::ReadHalf for Arc<UnixStream> {
-    fn recvmsg(&mut self, buf: &mut [u8]) -> super::RecvmsgResult {
+#[derive(Debug)]
+pub struct UnixStreamRead(Arc<UnixStream>);
+
+impl UnixStreamRead {
+    pub fn new(v: Arc<UnixStream>) -> Self {
+        Self(v)
+    }
+
+    pub fn recvmsg(&mut self, buf: &mut [u8]) -> RecvmsgResult {
         loop {
-            match fd_recvmsg(self.as_raw_fd(), buf) {
+            match fd_recvmsg(self.0.as_raw_fd(), buf) {
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
                 v => break v,
             }
         }
     }
 
-    fn peer_credentials(&mut self) -> io::Result<crate::fdo::ConnectionCredentials> {
-        get_unix_peer_creds(self)
+    pub fn peer_credentials(&mut self) -> io::Result<crate::fdo::ConnectionCredentials> {
+        get_unix_peer_creds(&self.0)
     }
 }
 
-impl super::WriteHalf for Arc<UnixStream> {
-    fn sendmsg(&mut self, buffer: &[u8], fds: &[BorrowedFd<'_>]) -> io::Result<usize> {
+#[derive(Debug)]
+pub struct UnixStreamWrite(Arc<UnixStream>);
+
+impl UnixStreamWrite {
+    pub fn new(v: Arc<UnixStream>) -> Self {
+        Self(v)
+    }
+
+    pub fn sendmsg(&mut self, buffer: &[u8], fds: &[BorrowedFd<'_>]) -> io::Result<usize> {
         loop {
-            match fd_sendmsg(self.as_raw_fd(), buffer, fds) {
+            match fd_sendmsg(self.0.as_raw_fd(), buffer, fds) {
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
                 v => break v,
             }
         }
     }
 
-    fn close(&mut self) -> io::Result<()> {
-        let stream = self.clone();
+    pub fn close(&mut self) -> io::Result<()> {
+        let stream = self.0.clone();
         stream.shutdown(std::net::Shutdown::Both)
     }
 
     #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
-    fn send_zero_byte(&mut self) -> io::Result<Option<usize>> {
-        send_zero_byte(self).map(Some)
+    pub fn send_zero_byte(&mut self) -> io::Result<Option<usize>> {
+        send_zero_byte(&self.0).map(Some)
     }
 
     /// Supports passing file descriptors.
-    fn can_pass_unix_fd(&self) -> bool {
+    pub fn can_pass_unix_fd(&self) -> bool {
         true
     }
 
-    fn peer_credentials(&mut self) -> io::Result<crate::fdo::ConnectionCredentials> {
-        get_unix_peer_creds(self)
+    pub fn peer_credentials(&mut self) -> io::Result<crate::fdo::ConnectionCredentials> {
+        get_unix_peer_creds(&self.0)
     }
 }
 

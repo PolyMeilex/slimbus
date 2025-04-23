@@ -30,13 +30,6 @@ pub mod fdo;
 
 pub mod names;
 
-#[deprecated(since = "4.0.0", note = "Use `connection::Socket` instead")]
-#[doc(hidden)]
-pub use connection::Socket;
-
-// Required for the macros to function within this crate.
-extern crate self as zbus;
-
 pub use zvariant;
 
 use nix::libc;

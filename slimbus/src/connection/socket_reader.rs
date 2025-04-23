@@ -8,17 +8,17 @@ use crate::{
     padding_for_8_bytes, Message,
 };
 
-use super::socket::ReadHalf;
+use super::socket::UnixStreamRead;
 
 #[derive(Debug)]
 pub struct SocketReader {
-    socket: Box<dyn ReadHalf>,
+    socket: UnixStreamRead,
     already_received_bytes: Option<Vec<u8>>,
     prev_seq: u64,
 }
 
 impl SocketReader {
-    pub fn new(socket: Box<dyn ReadHalf>, already_received_bytes: Vec<u8>) -> Self {
+    pub fn new(socket: UnixStreamRead, already_received_bytes: Vec<u8>) -> Self {
         Self {
             socket,
             already_received_bytes: Some(already_received_bytes),

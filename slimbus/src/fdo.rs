@@ -150,7 +150,7 @@ impl ConnectionCredentials {
 #[allow(clippy::upper_case_acronyms)]
 pub enum Error {
     /// Unknown or fall-through ZBus error.
-    ZBus(zbus::Error),
+    ZBus(crate::Error),
 
     /// A generic error; "something went wrong" - see the error message for more.
     Failed(String),

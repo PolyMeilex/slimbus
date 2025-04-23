@@ -1,12 +1,14 @@
 use log::trace;
 use std::{
     fmt::{self, Debug},
+    os::unix::net::UnixStream,
     str::FromStr,
+    sync::Arc,
 };
 
 use crate::{guid::Guid, Error, OwnedGuid, Result};
 
-use super::socket::{BoxedSplit, ReadHalf, WriteHalf};
+use super::socket::{UnixStreamRead, UnixStreamWrite};
 
 /// Authentication mechanisms
 ///
@@ -29,17 +31,17 @@ pub enum AuthMechanism {
 /// [`Connection::new_authenticated`]: ../struct.Connection.html#method.new_authenticated
 #[derive(Debug)]
 pub struct Authenticated {
-    pub(crate) socket_write: Box<dyn WriteHalf>,
+    pub(crate) socket_write: UnixStreamWrite,
     /// Whether file descriptor passing has been accepted by both sides
     pub(crate) cap_unix_fd: bool,
 
-    pub(crate) socket_read: Option<Box<dyn ReadHalf>>,
+    pub(crate) socket_read: Option<UnixStreamRead>,
     pub(crate) already_received_bytes: Option<Vec<u8>>,
 }
 
 impl Authenticated {
     /// Create a client-side `Authenticated` for the given `socket`.
-    pub fn client(socket: BoxedSplit, server_guid: Option<OwnedGuid>) -> Result<Self> {
+    pub fn client(socket: UnixStream, server_guid: Option<OwnedGuid>) -> Result<Self> {
         ClientHandshake::new(socket, server_guid).perform()
     }
 }
@@ -101,7 +103,7 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
 
 impl ClientHandshake {
     /// Start a handshake on this client socket
-    pub fn new(socket: BoxedSplit, server_guid: Option<OwnedGuid>) -> ClientHandshake {
+    pub fn new(socket: UnixStream, server_guid: Option<OwnedGuid>) -> ClientHandshake {
         ClientHandshake {
             common: HandshakeCommon::new(socket),
             server_guid,
@@ -131,7 +133,7 @@ impl ClientHandshake {
 
         // leading 0 is sent separately already for `freebsd` and `dragonfly` above.
         #[cfg(not(any(target_os = "freebsd", target_os = "dragonfly")))]
-        let written = self.common.socket.write_mut().sendmsg(b"\0", &[])?;
+        let written = self.common.socket_write.sendmsg(b"\0", &[])?;
 
         if written != 1 {
             return Err(Error::Handshake(
@@ -215,10 +217,9 @@ impl ClientHandshake {
 
         trace!("Handshake done");
 
-        let (read, write) = self.common.socket.take();
         Ok(Authenticated {
-            socket_write: write,
-            socket_read: Some(read),
+            socket_write: self.common.socket_write,
+            socket_read: Some(self.common.socket_read),
             cap_unix_fd: self.common.cap_unix_fd,
             already_received_bytes: Some(self.common.recv_buffer),
         })
@@ -317,16 +318,19 @@ impl FromStr for Command {
 // Common code for the client and server side of the handshake.
 #[derive(Debug)]
 pub struct HandshakeCommon {
-    socket: BoxedSplit,
+    socket_read: UnixStreamRead,
+    socket_write: UnixStreamWrite,
     recv_buffer: Vec<u8>,
     cap_unix_fd: bool,
 }
 
 impl HandshakeCommon {
     /// Start a handshake on this client socket
-    pub fn new(socket: BoxedSplit) -> Self {
+    pub fn new(socket: UnixStream) -> Self {
+        let socket = Arc::new(socket);
         Self {
-            socket,
+            socket_read: UnixStreamRead::new(socket.clone()),
+            socket_write: UnixStreamWrite::new(socket),
             recv_buffer: Vec::new(),
             cap_unix_fd: false,
         }
@@ -335,7 +339,7 @@ impl HandshakeCommon {
     fn write_command(&mut self, command: Command) -> Result<()> {
         let mut send_buffer = Vec::<u8>::from(command);
         while !send_buffer.is_empty() {
-            let written = self.socket.write_mut().sendmsg(&send_buffer, &[])?;
+            let written = self.socket_write.sendmsg(&send_buffer, &[])?;
             send_buffer.drain(..written);
         }
         Ok(())
@@ -356,7 +360,7 @@ impl HandshakeCommon {
             }
 
             let mut buf = [0; 64];
-            let res = self.socket.read_mut().recvmsg(&mut buf)?;
+            let res = self.socket_read.recvmsg(&mut buf)?;
             let read = {
                 let (read, fds) = res;
                 if !fds.is_empty() {

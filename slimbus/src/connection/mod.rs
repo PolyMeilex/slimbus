@@ -1,12 +1,12 @@
 //! Connection API.
 use log::trace;
+use socket::UnixStreamWrite;
 use std::os::fd::{AsFd, AsRawFd, RawFd};
 use std::sync::OnceLock;
 
 use crate::{message::Message, names::OwnedUniqueName, Address, Error, Result};
 
 pub mod socket;
-pub use socket::Socket;
 
 mod socket_reader;
 pub use socket_reader::SocketReader;
@@ -19,7 +19,7 @@ pub struct Connection {
     cap_unix_fd: bool,
     unique_name: OnceLock<OwnedUniqueName>,
 
-    socket_write: Box<dyn socket::WriteHalf>,
+    socket_write: UnixStreamWrite,
     raw_fd: RawFd,
 }
 
@@ -97,7 +97,7 @@ pub fn build(address: Address) -> Result<(Connection, SocketReader)> {
     let stream = address.connect()?;
     let raw_fd = stream.as_raw_fd();
 
-    let mut auth = Authenticated::client(stream.into(), server_guid)?;
+    let mut auth = Authenticated::client(stream, server_guid)?;
 
     // SAFETY: `Authenticated` is always built with these fields set to `Some`.
     let socket_read = auth.socket_read.take().unwrap();
