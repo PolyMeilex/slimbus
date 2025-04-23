@@ -12,9 +12,9 @@ pub struct HandleToken(String);
 
 impl Default for HandleToken {
     fn default() -> Self {
-        use rand::{distr::Alphanumeric, thread_rng, Rng};
+        use rand::{distr::Alphanumeric, rng, Rng};
 
-        let token: String = thread_rng()
+        let token: String = rng()
             .sample_iter(Alphanumeric)
             .take(10)
             .map(char::from)
