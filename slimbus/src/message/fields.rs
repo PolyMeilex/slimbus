@@ -4,10 +4,12 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::{borrow::Cow, num::NonZeroU32};
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
 use zvariant::{ObjectPath, Signature, Type, Value};
 
-use crate::message::{FieldCode, Header, Message};
+use crate::{
+    message::{FieldCode, Header, Message},
+    names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName},
+};
 
 /// A collection of [`Field`] instances.
 ///

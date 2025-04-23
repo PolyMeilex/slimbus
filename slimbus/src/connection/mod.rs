@@ -2,10 +2,8 @@
 use log::trace;
 use std::os::fd::{AsFd, AsRawFd, RawFd};
 use std::sync::OnceLock;
-use zbus_names::OwnedUniqueName;
 
-use crate::{address, Address};
-use crate::{message::Message, Error, Result};
+use crate::{address, message::Message, names::OwnedUniqueName, Address, Error, Result};
 
 pub mod socket;
 pub use socket::Socket;

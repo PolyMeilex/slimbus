@@ -5,7 +5,7 @@ use serde::{
     ser::{Serialize, Serializer},
 };
 
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
+use crate::names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
 use zvariant::{ObjectPath, Signature, Type, Value};
 
 /// The message field code.

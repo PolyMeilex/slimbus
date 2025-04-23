@@ -1,6 +1,6 @@
 use std::os::fd::AsRawFd;
 
-use slimbus::{names::OwnedUniqueName, zvariant::OwnedValue, Connection, Message, Result};
+use slimbus::{names::UniqueName, zvariant::OwnedValue, Connection, Message, Result};
 
 const INTERFACE: &str = "org.freedesktop.portal.Settings";
 const DESTINATION: &str = "org.freedesktop.portal.Desktop";
@@ -26,7 +26,7 @@ fn main() -> Result<()> {
             let msg = reader.read_socket().unwrap();
             println!("Got message: {:?}", msg);
             if msg.header().reply_serial() == Some(serial) {
-                let body: OwnedUniqueName = msg.body().deserialize()?;
+                let body = msg.body().deserialize::<UniqueName>()?.to_owned();
                 break body;
             }
         };

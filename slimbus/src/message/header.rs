@@ -6,13 +6,16 @@ use std::{
 use enumflags2::{bitflags, BitFlags};
 use serde::{Deserialize, Serialize};
 
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
 use zvariant::{
     serialized::{self, Context},
     Endian, ObjectPath, Signature, Type as VariantType,
 };
 
-use crate::{message::Fields, Error};
+use crate::{
+    message::Fields,
+    names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName},
+    Error,
+};
 
 pub(crate) const PRIMARY_HEADER_SIZE: usize = 12;
 pub(crate) const MIN_MESSAGE_SIZE: usize = PRIMARY_HEADER_SIZE + 4;

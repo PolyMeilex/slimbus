@@ -2,6 +2,7 @@
 
 use std::{num::NonZeroU32, os::fd::AsRawFd};
 
+use slimbus::names::UniqueName;
 use slimbus::zvariant::{DeserializeDict, SerializeDict, Type};
 use slimbus::{names::OwnedUniqueName, Connection, Message, Result, SocketReader};
 use zvariant::OwnedObjectPath;
@@ -59,7 +60,7 @@ fn hello(connection: &mut Connection, reader: &mut SocketReader) -> Result<Owned
 
     let serial = msg.primary_header().serial_num();
     let res = wait_for_response(reader, serial);
-    let body: OwnedUniqueName = res.body().deserialize()?;
+    let body = res.body().deserialize::<UniqueName>()?.to_owned();
     Ok(body)
 }
 

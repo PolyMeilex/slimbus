@@ -7,11 +7,11 @@ use std::{
 use zvariant::OwnedFd;
 
 use enumflags2::BitFlags;
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
 use zvariant::{serialized, Endian};
 
 use crate::{
     message::{Fields, Flags, Header, Message, PrimaryHeader, Sequence, Type},
+    names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName},
     utils::padding_for_8_bytes,
     zvariant::{serialized::Context, DynamicType, ObjectPath, Signature},
     EndianSig, Error, Result,

@@ -1,10 +1,14 @@
 //! D-Bus Message.
 use std::{borrow::Cow, fmt, sync::Arc};
 
-use zbus_names::{ErrorName, InterfaceName, MemberName};
 use zvariant::{serialized, Endian};
 
-use crate::{utils::padding_for_8_bytes, zvariant::ObjectPath, Error, Result};
+use crate::{
+    names::{ErrorName, InterfaceName, MemberName},
+    utils::padding_for_8_bytes,
+    zvariant::ObjectPath,
+    Error, Result,
+};
 
 mod builder;
 pub use builder::Builder;

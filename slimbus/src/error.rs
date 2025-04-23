@@ -1,10 +1,10 @@
 use std::{convert::Infallible, error, fmt, io, sync::Arc};
-use zbus_names::{Error as NamesError, OwnedErrorName};
 use zvariant::Error as VariantError;
 
 use crate::{
     fdo,
     message::{Message, Type},
+    names::OwnedErrorName,
 };
 
 /// The error type for `zbus`.
@@ -26,8 +26,6 @@ pub enum Error {
     ExcessData,
     /// A [zvariant](../zvariant/index.html) error.
     Variant(VariantError),
-    /// A [zbus_names](../zbus_names/index.html) error.
-    Names(NamesError),
     /// Endian signature invalid or doesn't match expectation.
     IncorrectEndian,
     /// Initial handshake error.
@@ -78,7 +76,6 @@ impl PartialEq for Error {
             (Self::InvalidField, Self::InvalidField) => true,
             (Self::InvalidMatchRule, Self::InvalidMatchRule) => true,
             (Self::Variant(s), Self::Variant(o)) => s == o,
-            (Self::Names(s), Self::Names(o)) => s == o,
             (Self::NameTaken, Self::NameTaken) => true,
             (Error::InputOutput(_), Self::InputOutput(_)) => false,
             (Self::Failure(s1), Self::Failure(s2)) => s1 == s2,
@@ -97,7 +94,6 @@ impl error::Error for Error {
             Error::Handshake(_) => None,
             Error::IncorrectEndian => None,
             Error::Variant(e) => Some(e),
-            Error::Names(e) => Some(e),
             Error::InvalidReply => None,
             Error::MethodError(_, _, _) => None,
             Error::InvalidGUID => None,
@@ -125,13 +121,12 @@ impl fmt::Display for Error {
             Error::IncorrectEndian => write!(f, "incorrect endian"),
             Error::InvalidField => write!(f, "invalid message field"),
             Error::Variant(e) => write!(f, "{e}"),
-            Error::Names(e) => write!(f, "{e}"),
             Error::InvalidReply => write!(f, "Invalid D-Bus method reply"),
             Error::MissingField => write!(f, "A required field is missing from message headers"),
             Error::MethodError(name, detail, _reply) => write!(
                 f,
                 "{}: {}",
-                **name,
+                *name,
                 detail.as_ref().map(|s| s.as_str()).unwrap_or("no details")
             ),
             Error::InvalidGUID => write!(f, "Invalid GUID"),
@@ -159,7 +154,6 @@ impl Clone for Error {
             Error::IncorrectEndian => Error::IncorrectEndian,
             Error::InvalidField => Error::InvalidField,
             Error::Variant(e) => Error::Variant(e.clone()),
-            Error::Names(e) => Error::Names(e.clone()),
             Error::InvalidReply => Error::InvalidReply,
             Error::MissingField => Error::MissingField,
             Error::MethodError(name, detail, reply) => {
@@ -195,15 +189,6 @@ impl From<VariantError> for Error {
     }
 }
 
-impl From<NamesError> for Error {
-    fn from(val: NamesError) -> Self {
-        match val {
-            NamesError::Variant(e) => Error::Variant(e),
-            e => Error::Names(e),
-        }
-    }
-}
-
 impl From<fdo::Error> for Error {
     fn from(val: fdo::Error) -> Self {
         match val {
@@ -230,7 +215,7 @@ impl From<Message> for Error {
         }
 
         if let Some(name) = header.error_name() {
-            let name = name.to_owned().into();
+            let name = name.to_owned();
             match message.body().deserialize_unchecked::<&str>() {
                 Ok(detail) => Error::MethodError(name, Some(String::from(detail)), message),
                 Err(_) => Error::MethodError(name, None, message),

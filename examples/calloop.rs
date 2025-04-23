@@ -6,7 +6,7 @@ use std::{
 };
 
 use calloop::{generic::Generic, EventLoop, Interest};
-use slimbus::{names::OwnedUniqueName, zvariant::OwnedValue, Connection, Message};
+use slimbus::{names::UniqueName, zvariant::OwnedValue, Connection, Message};
 
 enum State {
     Hello(NonZeroU32),
@@ -55,7 +55,7 @@ impl App {
         match self.state {
             State::Hello(serial) => {
                 if msg.header().reply_serial() == Some(serial) {
-                    let name: OwnedUniqueName = msg.body().deserialize().unwrap();
+                    let name = msg.body().deserialize::<UniqueName>()?.to_owned();
                     dbg!(name);
                     self.set_up_signals()?;
                 }
