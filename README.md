@@ -2,6 +2,16 @@
 
 This is basically stripped down alternative to zbus, it's only goal is to be as small as posible. No heavy deps, no async, no Windows support, no macOS support, no fancy abstractions, just a socket and message de/serialization.
 
+Current dependency graph (hopefully it will get even smaller):
+```
+slimbus
+├── enumflags2 v0.7
+├── log v0.4
+├── nix v0.29
+├── serde v1.0
+└── zvariant v5.4
+```
+
 ```rs
 fn main() -> Result<()> {
     let (mut connection, mut reader) = Connection::session()?;
