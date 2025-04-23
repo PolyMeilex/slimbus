@@ -1,6 +1,6 @@
-[zbus](https://github.com/dbus2/zbus/tree/main) but on a diet
+[zbus](https://github.com/dbus2/zbus/tree/main) but on a diet (2200 LOC)
 
-This is basically stripped down alternative to zbus, it's only goal is to be as small as posible. No heavy deps, no async, no Windows support, no macOS support, no fancy abstractions, just a socket and message de/serialization.
+This is basically stripped down alternative to zbus, it's only goal is to be as small as possible. No heavy deps, no async, no Windows support, no macOS support, no fancy abstractions, just a socket and message de/serialization.
 
 Current dependency graph (hopefully it will get even smaller):
 ```
