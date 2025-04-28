@@ -5,11 +5,11 @@ This is basically stripped down alternative to zbus, it's only goal is to be as 
 Current dependency graph (hopefully it will get even smaller):
 ```
 slimbus
-├── enumflags2 v0.7
-├── log v0.4
-├── nix v0.29
-├── serde v1.0
-└── zvariant v5.4
+├── enumflags2
+├── log
+├── rustix
+├── serde
+└── zvariant
 ```
 
 ```rs
