@@ -1,4 +1,5 @@
-use std::os::fd::RawFd;
+use rustix::fs::{OFlags, Timespec};
+use std::os::fd::{BorrowedFd, RawFd};
 
 mod error;
 pub use error::*;
@@ -27,34 +28,29 @@ pub use names::*;
 
 pub use zvariant;
 
-use nix::libc;
+pub fn set_blocking(fd: RawFd, blocking: bool) -> rustix::io::Result<()> {
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
 
-pub fn set_blocking(fd: RawFd, blocking: bool) {
     // Save the current flags
-    let mut flags = unsafe { libc::fcntl(fd, libc::F_GETFL, 0) };
-    if flags == -1 {
-        return;
-    }
+    let mut flags = rustix::fs::fcntl_getfl(fd)?;
 
     if blocking {
-        flags &= !libc::O_NONBLOCK;
+        flags &= !OFlags::NONBLOCK;
     } else {
-        flags |= libc::O_NONBLOCK;
+        flags |= OFlags::NONBLOCK;
     }
 
-    let _ = unsafe { libc::fcntl(fd, libc::F_SETFL, flags) != -1 };
+    rustix::fs::fcntl_setfl(fd, flags)?;
+
+    Ok(())
 }
 
-pub fn poll(fd: RawFd, timeout: i32) {
-    let fd = libc::pollfd {
-        fd,
-        events: libc::POLLIN,
-        revents: 0,
-    };
+pub fn poll(fd: RawFd, timeout: Option<&Timespec>) -> rustix::io::Result<()> {
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
 
-    let mut fds = [fd];
+    let pool_fd = rustix::event::PollFd::new(&fd, rustix::event::PollFlags::IN);
+    let mut pool_fds = [pool_fd];
 
-    unsafe {
-        libc::poll(fds.as_mut_ptr(), fds.len() as u64, timeout);
-    }
+    rustix::event::poll(&mut pool_fds, timeout)?;
+    Ok(())
 }

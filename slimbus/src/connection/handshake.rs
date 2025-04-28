@@ -87,7 +87,7 @@ pub struct ClientHandshake {
 }
 
 fn sasl_auth_id() -> String {
-    unsafe { nix::libc::geteuid() }.to_string()
+    rustix::process::geteuid().as_raw().to_string()
 }
 
 fn bytes_to_hex(bytes: &[u8]) -> String {

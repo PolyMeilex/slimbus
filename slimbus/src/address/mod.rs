@@ -60,7 +60,7 @@ impl Address {
         match env::var("DBUS_SESSION_BUS_ADDRESS") {
             Ok(val) => Self::from_str(&val),
             _ => {
-                let id = unsafe { nix::libc::geteuid() }.to_string();
+                let id = rustix::process::geteuid().as_raw().to_string();
                 let runtime_dir =
                     env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| format!("/run/user/{}", id));
                 let path = format!("unix:path={runtime_dir}/bus");

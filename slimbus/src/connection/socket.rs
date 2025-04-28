@@ -1,18 +1,18 @@
 use std::{
     io::{self, IoSlice, IoSliceMut},
+    mem::MaybeUninit,
     os::{
         fd::OwnedFd,
         unix::{
-            io::{AsRawFd, BorrowedFd, FromRawFd, RawFd},
+            io::{AsRawFd, BorrowedFd, RawFd},
             net::UnixStream,
         },
     },
     sync::Arc,
 };
 
-use nix::{
-    cmsg_space,
-    sys::socket::{recvmsg, sendmsg, ControlMessage, ControlMessageOwned, MsgFlags, UnixAddr},
+use rustix::net::{
+    RecvAncillaryBuffer, RecvAncillaryMessage, SendAncillaryBuffer, SendAncillaryMessage, SendFlags,
 };
 
 type RecvmsgResult = io::Result<(usize, Vec<OwnedFd>)>;
@@ -79,53 +79,61 @@ impl UnixStreamWrite {
 }
 
 fn fd_recvmsg(fd: RawFd, buffer: &mut [u8]) -> io::Result<(usize, Vec<OwnedFd>)> {
-    let mut iov = [IoSliceMut::new(buffer)];
-    let mut cmsgspace = cmsg_space!([RawFd; FDS_MAX]);
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
 
-    let msg = recvmsg::<UnixAddr>(fd, &mut iov, Some(&mut cmsgspace), MsgFlags::empty())?;
+    let mut iov = [IoSliceMut::new(buffer)];
+
+    let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(FDS_MAX))];
+    let mut cmsg_buffer = RecvAncillaryBuffer::new(&mut space);
+
+    let msg = rustix::net::recvmsg(
+        fd,
+        &mut iov,
+        &mut cmsg_buffer,
+        rustix::net::RecvFlags::empty(),
+    )?;
+
     if msg.bytes == 0 {
         return Err(io::Error::new(
             io::ErrorKind::BrokenPipe,
             "failed to read from socket",
         ));
     }
-    let mut fds = vec![];
-    for cmsg in msg.cmsgs()? {
-        #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
-        if let ControlMessageOwned::ScmCreds(_) = cmsg {
-            continue;
-        }
-        if let ControlMessageOwned::ScmRights(fd) = cmsg {
-            fds.extend(fd.iter().map(|&f| unsafe { OwnedFd::from_raw_fd(f) }));
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "unexpected CMSG kind",
-            ));
-        }
-    }
+
+    let fds: Vec<_> = cmsg_buffer
+        .drain()
+        .filter_map(|cmsg| match cmsg {
+            RecvAncillaryMessage::ScmRights(fds) => Some(fds),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+
     Ok((msg.bytes, fds))
 }
 
 fn fd_sendmsg(fd: RawFd, buffer: &[u8], fds: &[BorrowedFd<'_>]) -> io::Result<usize> {
-    // FIXME: Remove this conversion once nix supports BorrowedFd here.
-    //
-    // Tracking issue: https://github.com/nix-rust/nix/issues/1750
-    let fds: Vec<_> = fds.iter().map(|f| f.as_raw_fd()).collect();
-    let cmsg = if !fds.is_empty() {
-        vec![ControlMessage::ScmRights(&fds)]
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
+    let iov = [IoSlice::new(buffer)];
+
+    let mut space = if !fds.is_empty() {
+        vec![MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(fds.len()))]
     } else {
         vec![]
     };
-    let iov = [IoSlice::new(buffer)];
-    match sendmsg::<UnixAddr>(fd, &iov, &cmsg, MsgFlags::empty(), None) {
+
+    let mut buffer = SendAncillaryBuffer::new(&mut space);
+    if !fds.is_empty() {
+        buffer.push(SendAncillaryMessage::ScmRights(fds));
+    }
+
+    match rustix::net::sendmsg(fd, &iov, &mut buffer, SendFlags::empty())? {
         // can it really happen?
-        Ok(0) => Err(io::Error::new(
+        0 => Err(io::Error::new(
             io::ErrorKind::WriteZero,
             "failed to write to buffer",
         )),
-        Ok(n) => Ok(n),
-        Err(e) => Err(e.into()),
+        n => Ok(n),
     }
 }
 
@@ -141,15 +149,10 @@ fn get_unix_peer_creds_blocking(fd: RawFd) -> io::Result<crate::fdo::ConnectionC
 
     #[cfg(any(target_os = "android", target_os = "linux"))]
     {
-        use nix::sys::socket::{getsockopt, sockopt::PeerCredentials};
-
-        getsockopt(&fd, PeerCredentials)
-            .map(|creds| {
-                crate::fdo::ConnectionCredentials::default()
-                    .set_process_id(creds.pid() as _)
-                    .set_unix_user_id(creds.uid())
-            })
-            .map_err(|e| e.into())
+        let creds = rustix::net::sockopt::socket_peercred(fd)?;
+        Ok(crate::fdo::ConnectionCredentials::default()
+            .set_process_id(creds.pid.as_raw_nonzero().get() as u32)
+            .set_unix_user_id(creds.uid.as_raw() as u32))
     }
 
     #[cfg(any(
@@ -161,7 +164,9 @@ fn get_unix_peer_creds_blocking(fd: RawFd) -> io::Result<crate::fdo::ConnectionC
         target_os = "netbsd"
     ))]
     {
-        let uid = nix::unistd::getpeereid(fd).map(|(uid, _)| uid.into())?;
+        let uid = nix::unistd::getpeereid(fd)
+            .map(|(uid, _)| uid.into())
+            .map_err(|e| io::Error::from_raw_os_error(e as i32))?;
         // FIXME: Handle pid fetching too.
         Ok(crate::fdo::ConnectionCredentials::default().set_unix_user_id(uid))
     }
@@ -176,13 +181,15 @@ fn send_zero_byte(fd: &impl AsRawFd) -> io::Result<usize> {
 
 #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
 fn send_zero_byte_blocking(fd: RawFd) -> io::Result<usize> {
+    use nix::sys::socket;
+
     let iov = [std::io::IoSlice::new(b"\0")];
-    sendmsg::<()>(
+    socket::sendmsg::<()>(
         fd,
         &iov,
-        &[ControlMessage::ScmCreds],
-        MsgFlags::empty(),
+        &[socket::ControlMessage::ScmCreds],
+        socket::MsgFlags::empty(),
         None,
     )
-    .map_err(|e| e.into())
+    .map_err(|e| io::Error::from_raw_os_error(e as i32))?;
 }

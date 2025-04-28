@@ -130,7 +130,7 @@ fn add_response_signal_match(connection: &mut Connection, obj_path: &str) -> Res
 
 fn main() -> Result<()> {
     let (mut connection, mut reader) = Connection::session()?;
-    slimbus::set_blocking(connection.as_raw_fd(), true);
+    slimbus::set_blocking(connection.as_raw_fd(), true).unwrap();
 
     let unique_name = hello(&mut connection, &mut reader)?;
     let obj_path = open_file(&mut connection, &mut reader, &unique_name)?;

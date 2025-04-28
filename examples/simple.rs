@@ -9,7 +9,7 @@ const PATH: &str = "/org/freedesktop/portal/desktop";
 fn main() -> Result<()> {
     let (mut connection, mut reader) = Connection::session()?;
 
-    slimbus::set_blocking(connection.as_raw_fd(), false);
+    slimbus::set_blocking(connection.as_raw_fd(), false).unwrap();
 
     {
         let msg = Message::method("/org/freedesktop/DBus", "Hello")?
@@ -21,7 +21,7 @@ fn main() -> Result<()> {
 
         let serial = msg.primary_header().serial_num();
         let name = loop {
-            slimbus::poll(connection.as_raw_fd(), -1);
+            slimbus::poll(connection.as_raw_fd(), None).unwrap();
 
             let msg = reader.read_socket().unwrap();
             println!("Got message: {:?}", msg);
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         connection.send(&msg)?;
 
         loop {
-            slimbus::poll(connection.as_raw_fd(), -1);
+            slimbus::poll(connection.as_raw_fd(), None).unwrap();
 
             let msg = reader.read_socket().unwrap();
             println!("Got message: {:?}", msg);
@@ -88,7 +88,7 @@ fn main() -> Result<()> {
     }
 
     loop {
-        slimbus::poll(connection.as_raw_fd(), -1);
+        slimbus::poll(connection.as_raw_fd(), None).unwrap();
 
         let msg = reader.read_socket().unwrap();
         println!("Got message: {:?}", msg);

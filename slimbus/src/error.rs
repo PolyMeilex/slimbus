@@ -177,12 +177,6 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<nix::Error> for Error {
-    fn from(val: nix::Error) -> Self {
-        io::Error::from_raw_os_error(val as i32).into()
-    }
-}
-
 impl From<VariantError> for Error {
     fn from(val: VariantError) -> Self {
         Error::Variant(val)
